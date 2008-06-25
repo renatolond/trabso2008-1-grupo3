@@ -1,0 +1,6 @@
+0-9 Senha da conta
+10-29 Nome do titular da conta
+30-33 Saldo da conta
+34-37 Centavos da conta
+38-41 Tamanho do log
+42-.. Log de opera��es na conta
