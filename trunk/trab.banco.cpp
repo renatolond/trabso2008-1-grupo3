@@ -18,6 +18,10 @@
 using namespace std;
 #include "socketsoper.cpp"
 
+#define TAMSENHA 10
+#define TAMNOME 20
+#define TAMINTS 4
+
 // responsável pela região de exclusão mútua de quais arquivos estão em uso
 pthread_mutex_t mutexContas = PTHREAD_MUTEX_INITIALIZER;
 // responsável pela região de exclusão mútua de quais clientes estão logados
@@ -46,6 +50,44 @@ template<typename T> std::string toString(const T& t) {
     return s.str();
 }
 
+void escAccInfo(accInfo& acc)
+{
+    char buffer[TAMNOME+2];
+
+    fstream contaArq;
+    contaArq.open(((string)"20000" + ".acc").c_str(), fstream::out | fstream::binary);
+
+    memset(buffer, 0, sizeof(buffer));
+    memcpy(buffer, acc.senha.c_str(), TAMSENHA);
+
+    contaArq.write(buffer, TAMSENHA);
+
+    memset(buffer, 0, sizeof(buffer));
+    memcpy(buffer, acc.nome.c_str(), TAMNOME);
+    contaArq.write(buffer, TAMNOME);
+
+    contaArq.write((char *)&acc.saldo, TAMINTS);
+
+    contaArq.write((char *)&acc.centavos, TAMINTS);
+
+    contaArq.write((char *)&acc.saques, TAMINTS);
+
+    contaArq.write((char *)&acc.valor, TAMINTS);
+
+    contaArq.write((char *)&acc.titulares, TAMINTS);
+
+    int tam;
+
+    tam = acc.log.size();
+
+    contaArq.write((char *)&tam, TAMINTS);
+
+    contaArq.write(acc.log.c_str(), tam);
+    tam = 0;
+    contaArq.write((char*)&tam, 1);
+
+}
+
 void leAccInfo(string conta, accInfo& acc)
 {
     char buffer[50];
@@ -58,12 +100,12 @@ void leAccInfo(string conta, accInfo& acc)
 
     // lê senha da conta
     memset(buffer, 0, sizeof(buffer));
-    contaArq.read(buffer, 10);
+    contaArq.read(buffer, TAMSENHA);
     acc.senha = buffer;
 
     // lê nome do titular da conta
     memset(buffer, 0, sizeof(buffer));
-    contaArq.read(buffer, 20);
+    contaArq.read(buffer, TAMNOME);
     acc.nome = buffer;
 
     // lê o saldo da conta
@@ -90,6 +132,12 @@ void leAccInfo(string conta, accInfo& acc)
     contaArq.read(buffer, 4);
     memcpy(&acc.valor, buffer, 4);
 
+    // lê o número de titulares da conta
+    acc.titulares = 0;
+    memset(buffer, 0, sizeof(buffer));
+    contaArq.read(buffer, 4);
+    memcpy(&acc.titulares, buffer, 4);
+
     tam = 0;
     memset(buffer, 0, sizeof(buffer));
     contaArq.read(buffer, 4);
@@ -99,7 +147,7 @@ void leAccInfo(string conta, accInfo& acc)
     {
 	char *log = new char[tam+2];
 
-	memset(log, 0, sizeof(buffer));
+	memset(log, 0, tam+2);
 	contaArq.read(log, tam);
 	acc.log = log;
 
@@ -312,6 +360,14 @@ void * funcaoBanco (void * param)
 	    }
 	    else
 	    {
+		cliente.saldo -= quantia;
+		cliente.log += "Saque no valor de R$" + msg +"\n";
+		cliente.saques++;
+		cliente.valor+=quantia;
+		escAccInfo(cliente);
+		cmdE = "GOOD";
+		msg = "";
+		esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
 	    }
 
 	    // Depois da escrita libera a conta
@@ -363,7 +419,7 @@ void * funcaoBanco (void * param)
 	    pthread_mutex_lock(&mutexLogados);
 	    for ( int i = 0 ; i < clientesLogados.size() ; i++ )
 	    {
-		if ( clientesLogados.at(i) == conta )
+		if ( clientesLogados.at(i) == conta && cliente.titulares <= 1 )
 		{
 		    cmdE = "NONO";
 		    msg = "Atenção! Esta conta está aberta em outro terminal de atendimento!";
