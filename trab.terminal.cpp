@@ -250,10 +250,10 @@ void funcaoBanco (int sockfd)
 			sscanf(linha.c_str(), "%d", &decisao);
 			if (decisao == 1)
 			{
-			    int opcao;
+			    int valor;
 			    char conta[20];
 
-			    printf("Pra qual conta você gostaria de transferir?");
+			    printf("Pra qual conta você gostaria de transferir?\n");
 			    getline(cin, linha);
 			    sscanf(linha.c_str(), "%5[0-9-]", conta);
 
@@ -273,44 +273,19 @@ void funcaoBanco (int sockfd)
 			    }
 
 			    printf("Quanto você gostaria de transferir?\n");
-			    printf("1 - R$100\n");
-			    printf("2 - R$200\n");
-			    printf("3 - R$500\n");
-			    printf("4 - R$1000\n");
-			    printf("5 - R$5000\n");
 			    getline(cin, linha);
-			    n = sscanf(linha.c_str(), "%d", &opcao);
+			    n = sscanf(linha.c_str(), "%d", &valor);
 			    if ( n != 1 )
 			    {
-				printf("Opção desconhecida.\n");
+				printf("É necessário digitar um número.\n");
 				break;
 			    } // n != 1
-			    switch(opcao)
-			    {
-				case 1:
-				    msg = "100";
-				    break;
-				case 2:
-				    msg = "200";
-				    break;
-				case 3:
-				    msg = "500";
-				    break;
-				case 4:
-				    msg = "1000";
-				    break;
-				case 5:
-				    msg = "5000";
-				    break;
-				default:
-				    msg = "";
-				    printf("Opção desconhecida.\n");
-				    break;
-			    } // switch (opcao)
-			    if ( msg == "" )
-			    {
-				break;
-			    } // msg == ""
+
+			    char buffer[10];
+
+			    sprintf(buffer, "%d", valor);
+
+			    msg = buffer;
 
 			    cmdE = "ITR2";
 			    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
@@ -329,6 +304,74 @@ void funcaoBanco (int sockfd)
 			} // decisao == 1 
 			else if ( decisao == 2 )
 			{
+			    int valor, opcao, n;
+			    char conta[20];
+
+			    printf("Pra qual banco você gostaria de transferir?\n");
+			    printf("1 - Banco 2\n");
+			    getline(cin, linha);
+			    n = sscanf(linha.c_str(), "%d", opcao);
+
+			    if ( n != 1 )
+			    {
+				printf("É preciso escolher um banco\n");
+				break;
+			    }
+
+			    if ( opcao != 1 )
+			    {
+				printf("Opção desconhecida\n");
+				break;
+			    }
+
+			    printf("Pra qual conta você gostaria de transferir?\n");
+			    getline(cin, linha);
+			    sscanf(linha.c_str(), "%5[0-9-]", conta);
+
+			    cmdE = "ETR1";
+			    msg = conta + " 1";
+
+			    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+
+			    msg = "";
+			    cmd[0] = '\0';
+			    le_socket(sockfd, cmd, sizeof(cmd), msg);
+
+			    if ( strcasecmp(cmd, "GOOD") )
+			    {
+				printf("Erro: %s", msg.c_str());
+				break;
+			    }
+
+			    printf("Quanto você gostaria de transferir?\n");
+			    getline(cin, linha);
+			    n = sscanf(linha.c_str(), "%d", &valor);
+			    if ( n != 1 )
+			    {
+				printf("É necessário digitar um número.\n");
+				break;
+			    } // n != 1
+
+			    char buffer[10];
+
+			    sprintf(buffer, "%d", valor);
+
+			    msg = buffer;
+
+			    cmdE = "ETR2";
+			    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+
+			    msg = "";
+			    cmd[0] = '\0';
+			    le_socket(sockfd, cmd, sizeof(cmd), msg);
+
+			    if ( strcasecmp(cmd, "GOOD") )
+			    {
+				printf("Erro: %s", msg.c_str());
+				break;
+			    }
+
+			    printf("O dinheiro foi transferido!\n");
 			} // decisao == 2
 			else
 			{

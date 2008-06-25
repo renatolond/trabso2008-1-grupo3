@@ -258,6 +258,7 @@ int main(void)
 void * funcaoBanco (void * param)
 {
     int sockfd = *((int*) param);
+    int newsockfd;
     char cmd[10];
     string cmdE;
     string msg;
@@ -390,6 +391,220 @@ void * funcaoBanco (void * param)
 		}
 	    }
 	    pthread_mutex_unlock(&mutexContas);
+	}
+	else if ( !strcasecmp(cmd, "ETR1") )
+	{
+	    char conta[10];
+	    int banco;
+
+	    sscanf("%s %d", conta, &banco);
+
+	    // Isso é escalonável para quantos bancos existirem, mas para isso, os bancos deveriam ter
+	    // vários ips e/ou portas diferentes. No caso do nosso teste, o "Banco 2" sempre será o 
+	    // banco cuja porta é 28333
+#define SERVIDORBANCO2 "localhost"
+#define PORTABANCO2 28333
+
+	    newsockfd = socket(AF_INET, SOCK_STREAM, 0);
+	    if ( newsockfd < 0 )
+	    {
+		perror("Erro ao abrir socket");
+		exit(1);
+	    }
+
+	    server = gethostbyname(SERVIDORBANCO2);
+	    if ( server == NULL )
+	    {
+		perror("Erro, host não encontrado");
+		exit(2);
+	    }
+
+	    memset(&serv_addr, 0, sizeof(serv_addr));
+	    serv_addr.sin_family = AF_INET;
+
+	    memmove(&serv_addr.sin_addr.s_addr, server->h_addr, server->h_length);
+
+	    serv_addr.sin_port = htons(PORTABANCO2);
+
+	    if ( connect(newsockfd, (sockaddr *) &serv_addr, sizeof(serv_addr)) < 0 )
+	    {
+		perror("Erro ao conectar");
+		exit(3);
+	    }
+
+	    cmdE = "CONN";
+	    msg = "SenhaMuitoSecreta!";
+	    esc_socket(newsockfd, cmdE.c_str(), cmdE.size(), msg);
+
+	    le_socket(newsockfd, cmd, sizeof(cmd), msg);
+
+	    if ( strcasecmp(cmd, "GOOD") )
+	    {
+		printf("Falha na autenticação com o servidor\n");
+		cmdE = "NONO";
+		msg = "Erro de comunicação com o Banco 2\n";
+		esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+		continue;
+	    }
+
+	    cmdE = "CHCO"; // checa conta
+	    msg = conta;
+	    esc_socket(newsockfd, cmdE.c_str(), cmdE.size(), msg);
+
+	    msg = "";
+	    cmd[0] = '\0';
+
+	    le_socket(newsockfd, cmd, sizeof(cmd), msg);
+
+	    if ( strcasecmp(cmd, "GOOD") )
+	    {
+		cmdE = "NONO";
+		msg = "Não existe tal conta no Banco 2\n";
+		esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+		continue;
+	    }
+
+	    cmdE = "GOOD";
+	    msg = "";
+	    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+	}
+	else if ( !strcasecmp(cmd, "ETR2") )
+	{
+	    int quantia;
+
+	    sscanf(msg.c_str(), "%d", &quantia);
+	    cmdE = "RDOC";
+	    esc_socket(newsockfd, cmdE.c_str(), cmdE.size(), msg);
+
+	    le_socket(newsockfd, cmd, sizeof(cmd), msg);
+
+	    cmdE = "COFF";
+
+	    esc_socket(newsockfd, cmdE.c_str(), cmdE.size(), msg);
+
+	    if ( strcasecmp(cmd, "GOOD") )
+	    {
+		cmdE = "NONO";
+		msg = "Houve um problema no DOC para o banco 2.\n";
+		esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+		continue;
+	    }
+
+	    cmdE = "GOOD";
+	    msg = "";
+	    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+
+	    close(newsockfd);
+	    do
+	    {
+		bool emUso = false;
+		pthread_mutex_lock(&mutexContas);
+		for ( int i = 0 ; i < contasEmUso.size() ; i++ )
+		{
+		    if ( contasEmUso.at(i) == cliente.conta )
+		    {
+			emUso = true;
+			break;
+		    }
+		}
+
+		if ( !emUso )
+		    break;
+		pthread_mutex_unlock(&mutexContas);
+	    } while ( 1 );
+
+	    // Bloqueia a conta enquanto escreve...
+	    contasEmUso.push_back(cliente.conta);
+	    leAccInfo(cliente.conta, cliente);
+
+	    pthread_mutex_unlock(&mutexContas);
+
+
+		cliente.saldo -= quantia - 10;
+		cliente.log += "Doc enviado no valor de R$" + msg +"\n";
+		cliente.valorDoc += quantia;
+		escAccInfo(cliente);
+		cmdE = "GOOD";
+		msg = "";
+		esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+
+	    // Depois da escrita libera a conta
+	    pthread_mutex_lock(&mutexContas);
+	    for ( int i = 0 ; i < contasEmUso.size() ; i++ )
+	    {
+		if ( contasEmUso.at(i) == cliente.conta )
+		{
+		    contasEmUso.erase(contasEmUso.begin() + i);
+		    break;
+		}
+	    }
+	    pthread_mutex_unlock(&mutexContas);
+
+	}
+	else if ( !strcasecmp(cmd, "RDOC") )
+	{    
+	    do
+	    {
+		bool emUso = false;
+		pthread_mutex_lock(&mutexContas);
+		for ( int i = 0 ; i < contasEmUso.size() ; i++ )
+		{
+		    if ( contasEmUso.at(i) == cliente.conta )
+		    {
+			emUso = true;
+			break;
+		    }
+		}
+
+		if ( !emUso )
+		    break;
+		pthread_mutex_unlock(&mutexContas);
+	    } while ( 1 );
+
+	    // Bloqueia a conta enquanto escreve...
+	    contasEmUso.push_back(cliente.conta);
+	    leAccInfo(cliente.conta, cliente);
+
+	    pthread_mutex_unlock(&mutexContas);
+
+	    int quantia;
+
+	    sscanf(msg.c_str(), "%d", &quantia);
+
+		cliente.saldo += quantia;
+		cliente.log += "Doc recebido no valor de R$" + msg +"\n";
+		escAccInfo(cliente);
+		cmdE = "GOOD";
+		msg = "";
+		esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+
+	    // Depois da escrita libera a conta
+	    pthread_mutex_lock(&mutexContas);
+	    for ( int i = 0 ; i < contasEmUso.size() ; i++ )
+	    {
+		if ( contasEmUso.at(i) == cliente.conta )
+		{
+		    contasEmUso.erase(contasEmUso.begin() + i);
+		    break;
+		}
+	    }
+	    pthread_mutex_unlock(&mutexContas);
+	}
+	else if ( !strcasecmp(cmd, "CHCO") )
+	{
+	    string conta = msg;
+	    if ( !fileExists(conta + (string)".acc") )
+	    {
+		cmdE = "NONO";
+		msg = "Conta não existe\n";
+		esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+	    }
+
+	    cliente.conta = conta;
+
+	    cmdE = "GOOD";
+	    msg = "";
+	    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
 	}
 	else if ( !strcasecmp(cmd, "ITR1") )
 	{
