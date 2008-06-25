@@ -152,7 +152,8 @@ void funcaoBanco (int socket)
 	    printf("O que você deseja fazer hoje?\n");
 	    printf("Digite 1 para saque.\n");
 	    printf("Digite 2 para saldo.\n");
-	    printf("Digite 3 caso não queira mais fazer operações.\n");
+	    printf("Digite 3 para transferências.\n");
+	    printf("Digite 4 caso não queira mais fazer operações.\n");
 	    getline(cin, linha);
 	    n = sscanf(linha.c_str(), "%d", &opcode);
 
@@ -167,61 +168,69 @@ void funcaoBanco (int socket)
 	    switch (opcode)
 	    {
 		case 1:
-		    int opcao;
-		    printf("Quanto você gostaria de sacar?\n");
-		    printf("1 - R$10");
-		    printf("2 - R$20");
-		    printf("3 - R$50");
-		    printf("4 - R$100");
-		    printf("5 - R$1000");
-		    getline(cin, linha);
-		    n = sscanf(linha.c_str(), "%d", &opcao);
-		    if ( n != 1 )
 		    {
-			printf("Opção desconhecida.\n");
-			break;
-		    }
-		    switch(opcao)
-		    {
-			case 1:
-			    msg = "10";
-			case 2:
-			    msg = "20";
-			case 3:
-			    msg = "50";
-			case 4:
-			    msg = "100";
-			case 5:
-			    msg = "1000";
-			default:
-			    msg = "";
+			int opcao;
+			printf("Quanto você gostaria de sacar?\n");
+			printf("1 - R$10\n");
+			printf("2 - R$20\n");
+			printf("3 - R$50\n");
+			printf("4 - R$100\n");
+			printf("5 - R$500\n");
+			getline(cin, linha);
+			n = sscanf(linha.c_str(), "%d", &opcao);
+			if ( n != 1 )
+			{
 			    printf("Opção desconhecida.\n");
 			    break;
+			}
+			switch(opcao)
+			{
+			    case 1:
+				msg = "10";
+				break;
+			    case 2:
+				msg = "20";
+				break;
+			    case 3:
+				msg = "50";
+				break;
+			    case 4:
+				msg = "100";
+				break;
+			    case 5:
+				msg = "500";
+				break;
+			    default:
+				msg = "";
+				printf("Opção desconhecida.\n");
+				break;
+			}
+			if ( msg == "" )
+			{
+			    break;
+			}
+
+			cmdE = "SAQU";
+			esc_socket(socket, cmdE.c_str(), cmdE.size(), msg);
+
+			le_socket(socket, cmd, sizeof(cmd), msg);
+
+			if ( strcasecmp(cmd, "GOOD") )
+			{
+			    printf("Houve um erro: %s", msg.c_str());
+			    break;
+			}
+
+			printf("Retire o seu dinheiro!\n");
 		    }
-		    if ( msg == "" )
-		    {
-			break;
-		    }
-
-		    cmdE = "SAQU";
-		    esc_socket(socket, cmdE.c_str(), cmdE.size(), msg);
-		    
-		    le_socket(socket, cmd, sizeof(cmd), msg);
-
-		    if ( strcasecmp(cmd, "GOOD") )
-		    {
-			printf("Houve um erro: %s", msg.c_str());
-			break;
-		    }
-
-		    printf("Retire o seu dinheiro!\n");
-
 		    break;
 		case 2:
 		    cmdE = "SALD";
 		    msg = "";
 		    esc_socket(socket, cmdE.c_str(), cmdE.size(), msg);
 
+		    msg = "";
+		    cmd[0] = '\0';
 		    le_socket(socket, cmd, sizeof(cmd), msg);
 
 		    if ( strcasecmp(cmd, "GOOD") )
@@ -233,6 +242,101 @@ void funcaoBanco (int socket)
 		    printf("Você tem R$%s\n", msg.c_str());
 		    break;
 		case 3:
+		    {
+			int decisao;
+			printf("Para transferir para contas do mesmo banco, pressione 1\n");
+			printf("Para contas de outros bancos(DOC), pressione 2\n");
+			getline(cin, linha);
+			sscanf(linha.c_str(), "%d", &decisao);
+			if (decisao == 1)
+			{
+			    int opcao;
+			    char conta[20];
+
+			    printf("Pra qual conta você gostaria de transferir?");
+			    getline(cin, linha);
+			    sscanf(linha.c_str(), "%5[0-9-]", conta);
+
+			    cmdE = "ITR1";
+			    msg = conta;
+
+			    esc_socket(socket, cmdE.c_str(), cmdE.size(), msg);
+
+			    msg = "";
+			    cmd[0] = '\0';
+			    le_socket(socket, cmd, sizeof(cmd), msg);
+
+			    if ( strcasecmp(cmd, "GOOD") )
+			    {
+				printf("Erro: %s", msg.c_str());
+				break;
+			    }
+
+			    printf("Quanto você gostaria de transferir?\n");
+			    printf("1 - R$10\n");
+			    printf("2 - R$20\n");
+			    printf("3 - R$50\n");
+			    printf("4 - R$100\n");
+			    printf("5 - R$500\n");
+			    getline(cin, linha);
+			    n = sscanf(linha.c_str(), "%d", &opcao);
+			    if ( n != 1 )
+			    {
+				printf("Opção desconhecida.\n");
+				break;
+			    } // n != 1
+			    switch(opcao)
+			    {
+				case 1:
+				    msg = "10";
+				    break;
+				case 2:
+				    msg = "20";
+				    break;
+				case 3:
+				    msg = "50";
+				    break;
+				case 4:
+				    msg = "100";
+				    break;
+				case 5:
+				    msg = "500";
+				    break;
+				default:
+				    msg = "";
+				    printf("Opção desconhecida.\n");
+				    break;
+			    } // switch (opcao)
+			    if ( msg == "" )
+			    {
+				break;
+			    } // msg == ""
+
+			    cmdE = "ITR2";
+			    esc_socket(socket, cmdE.c_str(), cmdE.size(), msg);
+
+			    msg = "";
+			    cmd[0] = '\0';
+			    le_socket(socket, cmd, sizeof(cmd), msg);
+
+			    if ( strcasecmp(cmd, "GOOD") )
+			    {
+				printf("Erro: %s", msg.c_str());
+				break;
+			    }
+
+			    printf("O dinheiro foi transferido!\n");
+			} // decisao == 1 
+			else if ( decisao == 2 )
+			{
+			} // decisao == 2
+			else
+			{
+			    printf("Opcao desconhecida");
+			} // else
+		    } // case 3 
+		    break;
+		case 4:
 		    cmdE = "LOFF";
 		    msg = "";
 		    esc_socket(socket, cmdE.c_str(), cmdE.size(), msg);
@@ -241,12 +345,10 @@ void funcaoBanco (int socket)
 		default:
 		    printf("Opção desconhecida.\n");
 		    break;
-	    }
+	    } // switch (opcode)
 
 	    if ( quit )
 		break;
-
 	} while (1);
-
     } while (1);
 }
