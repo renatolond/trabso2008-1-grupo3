@@ -36,6 +36,7 @@ struct _accInfo
     int saldo, centavos;
     int saques, valor;
     int titulares;
+    int valorTransf;
     string log;
     bool initialized;
 };
@@ -55,7 +56,7 @@ void escAccInfo(accInfo& acc)
     char buffer[TAMNOME+2];
 
     fstream contaArq;
-    contaArq.open(((string)"20000" + ".acc").c_str(), fstream::out | fstream::binary);
+    contaArq.open((acc.conta + ".acc").c_str(), fstream::out | fstream::binary);
 
     memset(buffer, 0, sizeof(buffer));
     memcpy(buffer, acc.senha.c_str(), TAMSENHA);
@@ -75,6 +76,8 @@ void escAccInfo(accInfo& acc)
     contaArq.write((char *)&acc.valor, TAMINTS);
 
     contaArq.write((char *)&acc.titulares, TAMINTS);
+
+    contaArq.write((char *)&acc.valorTransf, TAMINTS);
 
     int tam;
 
@@ -111,32 +114,38 @@ void leAccInfo(string conta, accInfo& acc)
     // lê o saldo da conta
     acc.saldo = 0;
     memset(buffer, 0, sizeof(buffer));
-    contaArq.read(buffer, 4);
-    memcpy(&acc.saldo, buffer, 4);
+    contaArq.read(buffer, TAMINTS);
+    memcpy(&acc.saldo, buffer, TAMINTS);
 
     // lê os centavos da conta
     acc.centavos = 0;
     memset(buffer, 0, sizeof(buffer));
-    contaArq.read(buffer, 4);
-    memcpy(&acc.centavos, buffer, 4);
-    
+    contaArq.read(buffer, TAMINTS);
+    memcpy(&acc.centavos, buffer, TAMINTS);
+
     // lê quantos saques foram feitos no dia
     acc.saques = 0;
     memset(buffer, 0, sizeof(buffer));
-    contaArq.read(buffer, 4);
-    memcpy(&acc.saques, buffer, 4);
-    
+    contaArq.read(buffer, TAMINTS);
+    memcpy(&acc.saques, buffer, TAMINTS);
+
     // lê qual o valor acumulado dos saques feitos no dia
     acc.valor = 0;
     memset(buffer, 0, sizeof(buffer));
-    contaArq.read(buffer, 4);
-    memcpy(&acc.valor, buffer, 4);
+    contaArq.read(buffer, TAMINTS);
+    memcpy(&acc.valor, buffer, TAMINTS);
 
     // lê o número de titulares da conta
     acc.titulares = 0;
     memset(buffer, 0, sizeof(buffer));
-    contaArq.read(buffer, 4);
-    memcpy(&acc.titulares, buffer, 4);
+    contaArq.read(buffer, TAMINTS);
+    memcpy(&acc.titulares, buffer, TAMINTS);
+
+    // lê o valor das transferências da conta
+    acc.valorTransf = 0;
+    memset(buffer, 0, sizeof(buffer));
+    contaArq.read(buffer, TAMINTS);
+    memcpy(&acc.valorTransf, buffer, TAMINTS);
 
     tam = 0;
     memset(buffer, 0, sizeof(buffer));
@@ -280,7 +289,7 @@ void * funcaoBanco (void * param)
 
     printf("OK, o caixa de auto-atendimento se identificou com sucesso. Iniciando operações.\n");
 
-    accInfo cliente;
+    accInfo cliente, cliente2;
 
     cliente.initialized = false;
 
@@ -293,7 +302,7 @@ void * funcaoBanco (void * param)
 	{
 	    break;
 	}
-	if ( !strcasecmp(cmd, "LOFF") )
+	else if ( !strcasecmp(cmd, "LOFF") )
 	{
 	    cliente.initialized = false;
 	    pthread_mutex_lock(&mutexLogados);
@@ -310,7 +319,7 @@ void * funcaoBanco (void * param)
 	    msg = "Tenha um bom dia!";
 	    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
 	}
-	if ( !strcasecmp(cmd, "SAQU") )
+	else if ( !strcasecmp(cmd, "SAQU") )
 	{
 	    do
 	    {
@@ -342,9 +351,9 @@ void * funcaoBanco (void * param)
 
 	    if ( cliente.saldo < quantia )
 	    {
-		    cmdE = "NONO";
-		    msg = "Não há saldo suficiente para esta operação!";
-		    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+		cmdE = "NONO";
+		msg = "Não há saldo suficiente para esta operação!";
+		esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
 	    }
 	    else if ( cliente.saques >= 3 )
 	    {
@@ -382,8 +391,103 @@ void * funcaoBanco (void * param)
 	    }
 	    pthread_mutex_unlock(&mutexContas);
 	}
+	else if ( !strcasecmp(cmd, "ITR1") )
+	{
+	    string conta = msg;
 
-	if ( !strcasecmp(cmd, "SALD") )
+	    if ( conta == cliente.conta )
+	    {
+		cmdE = "NONO";
+		msg = "Você não pode fazer uma transferência para si mesmo\n";
+		esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+	    }
+
+	    if ( !fileExists(conta + (string)".acc") )
+	    {
+		cmdE = "NONO";
+		msg = "Conta não existe\n";
+		esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+	    }
+
+	    cliente2.conta = msg;
+
+	    cmdE = "GOOD";
+	    msg = "";
+	    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+	}
+	else if ( !strcasecmp(cmd, "ITR2") )
+	{
+	    do
+	    {
+		bool emUso = false;
+		pthread_mutex_lock(&mutexContas);
+		for ( int i = 0 ; i < contasEmUso.size() ; i++ )
+		{
+		    if ( contasEmUso.at(i) == cliente.conta || contasEmUso.at(i) == cliente2.conta )
+		    {
+			emUso = true;
+			break;
+		    }
+		}
+
+		if ( !emUso )
+		    break;
+		pthread_mutex_unlock(&mutexContas);
+	    } while ( 1 );
+
+	    // Bloqueia as contas enquanto escreve...
+	    contasEmUso.push_back(cliente.conta);
+	    contasEmUso.push_back(cliente2.conta);
+
+	    leAccInfo(cliente.conta, cliente);
+	    leAccInfo(cliente2.conta, cliente2);
+
+	    pthread_mutex_unlock(&mutexContas);
+
+	    int quantia;
+
+	    sscanf(msg.c_str(), "%d", &quantia);
+
+	    if ( cliente.saldo < quantia )
+	    {
+		cmdE = "NONO";
+		msg = "Não há saldo suficiente para esta operação!";
+		esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+	    }
+	    else if ( cliente.valorTransf+quantia >= 5000 )
+	    {
+		cmdE = "NONO";
+		msg = "O valor das transferências desta conta já excedeu R$5000";
+		esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+	    }
+	    else
+	    {
+		cliente.saldo -= quantia;
+		cliente.log += "Transferencia Efetuada no valor de R$" + msg +"\n";
+		cliente.valorTransf+=quantia;
+		cliente2.saldo += quantia;
+		cliente2.log += "Transferencia Recebida no valor de R$" + msg + "\n";
+		escAccInfo(cliente);
+		escAccInfo(cliente2);
+		cmdE = "GOOD";
+		msg = "";
+		esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+	    }
+
+	    // Depois da escrita libera as contas
+	    pthread_mutex_lock(&mutexContas);
+	    for ( int i = 0 ; i < contasEmUso.size() ; i++ )
+	    {
+		if ( contasEmUso.at(i) == cliente.conta || contasEmUso.at(i) == cliente2.conta )
+		{
+		    contasEmUso.erase(contasEmUso.begin() + i);
+		    i--;
+		}
+	    }
+	    pthread_mutex_unlock(&mutexContas);
+
+	}
+	else if ( !strcasecmp(cmd, "SALD") )
 	{
 	    do
 	    {
@@ -411,11 +515,13 @@ void * funcaoBanco (void * param)
 	    msg = toString(cliente.saldo) + "." + toString(cliente.centavos);
 	    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
 	}
-	if ( !strcasecmp(cmd, "LOGA") )
+	else if ( !strcasecmp(cmd, "LOGA") )
 	{
 	    char conta[15];
 	    char digital[15];
+	    bool erro;
 	    sscanf(msg.c_str(), "%s %s", conta, digital);
+	    erro = false;
 	    pthread_mutex_lock(&mutexLogados);
 	    for ( int i = 0 ; i < clientesLogados.size() ; i++ )
 	    {
@@ -424,10 +530,13 @@ void * funcaoBanco (void * param)
 		    cmdE = "NONO";
 		    msg = "Atenção! Esta conta está aberta em outro terminal de atendimento!";
 		    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
+		    erro = true;
 		    break;
 		}
 	    }
 	    pthread_mutex_unlock(&mutexLogados);
+	    if ( erro == true )
+		continue;
 
 	    if ( !fileExists(conta + (string)".acc") )
 	    {

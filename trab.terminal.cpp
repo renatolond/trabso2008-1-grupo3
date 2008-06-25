@@ -106,7 +106,7 @@ int main(void)
     return 0;
 }
 
-void funcaoBanco (int socket)
+void funcaoBanco (int sockfd)
 {
     string linha;
     char conta[15];
@@ -135,9 +135,9 @@ void funcaoBanco (int socket)
 
 	cmdE = "LOGA";
 	msg = conta + (string)" " + digital;
-	esc_socket(socket, cmdE.c_str(), cmdE.size(), msg);
+	esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
 
-	le_socket(socket, cmd, sizeof(cmd), msg);
+	le_socket(sockfd, cmd, sizeof(cmd), msg);
 
 	if ( strcasecmp("GOOD", cmd) )
 	{
@@ -211,9 +211,9 @@ void funcaoBanco (int socket)
 			}
 
 			cmdE = "SAQU";
-			esc_socket(socket, cmdE.c_str(), cmdE.size(), msg);
+			esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
 
-			le_socket(socket, cmd, sizeof(cmd), msg);
+			le_socket(sockfd, cmd, sizeof(cmd), msg);
 
 			if ( strcasecmp(cmd, "GOOD") )
 			{
@@ -227,11 +227,11 @@ void funcaoBanco (int socket)
 		case 2:
 		    cmdE = "SALD";
 		    msg = "";
-		    esc_socket(socket, cmdE.c_str(), cmdE.size(), msg);
+		    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
 
 		    msg = "";
 		    cmd[0] = '\0';
-		    le_socket(socket, cmd, sizeof(cmd), msg);
+		    le_socket(sockfd, cmd, sizeof(cmd), msg);
 
 		    if ( strcasecmp(cmd, "GOOD") )
 		    {
@@ -260,11 +260,11 @@ void funcaoBanco (int socket)
 			    cmdE = "ITR1";
 			    msg = conta;
 
-			    esc_socket(socket, cmdE.c_str(), cmdE.size(), msg);
+			    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
 
 			    msg = "";
 			    cmd[0] = '\0';
-			    le_socket(socket, cmd, sizeof(cmd), msg);
+			    le_socket(sockfd, cmd, sizeof(cmd), msg);
 
 			    if ( strcasecmp(cmd, "GOOD") )
 			    {
@@ -273,11 +273,11 @@ void funcaoBanco (int socket)
 			    }
 
 			    printf("Quanto você gostaria de transferir?\n");
-			    printf("1 - R$10\n");
-			    printf("2 - R$20\n");
-			    printf("3 - R$50\n");
-			    printf("4 - R$100\n");
-			    printf("5 - R$500\n");
+			    printf("1 - R$100\n");
+			    printf("2 - R$200\n");
+			    printf("3 - R$500\n");
+			    printf("4 - R$1000\n");
+			    printf("5 - R$5000\n");
 			    getline(cin, linha);
 			    n = sscanf(linha.c_str(), "%d", &opcao);
 			    if ( n != 1 )
@@ -288,19 +288,19 @@ void funcaoBanco (int socket)
 			    switch(opcao)
 			    {
 				case 1:
-				    msg = "10";
-				    break;
-				case 2:
-				    msg = "20";
-				    break;
-				case 3:
-				    msg = "50";
-				    break;
-				case 4:
 				    msg = "100";
 				    break;
-				case 5:
+				case 2:
+				    msg = "200";
+				    break;
+				case 3:
 				    msg = "500";
+				    break;
+				case 4:
+				    msg = "1000";
+				    break;
+				case 5:
+				    msg = "5000";
 				    break;
 				default:
 				    msg = "";
@@ -313,11 +313,11 @@ void funcaoBanco (int socket)
 			    } // msg == ""
 
 			    cmdE = "ITR2";
-			    esc_socket(socket, cmdE.c_str(), cmdE.size(), msg);
+			    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
 
 			    msg = "";
 			    cmd[0] = '\0';
-			    le_socket(socket, cmd, sizeof(cmd), msg);
+			    le_socket(sockfd, cmd, sizeof(cmd), msg);
 
 			    if ( strcasecmp(cmd, "GOOD") )
 			    {
@@ -339,7 +339,7 @@ void funcaoBanco (int socket)
 		case 4:
 		    cmdE = "LOFF";
 		    msg = "";
-		    esc_socket(socket, cmdE.c_str(), cmdE.size(), msg);
+		    esc_socket(sockfd, cmdE.c_str(), cmdE.size(), msg);
 		    quit = true;
 		    break;
 		default:
